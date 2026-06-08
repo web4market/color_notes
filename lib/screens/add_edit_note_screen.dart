@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/note.dart';
 import '../database/database_helper.dart';
+import '../utils/text_processor.dart';
 
 class AddEditNoteScreen extends StatefulWidget {
   final Note? note;
@@ -20,22 +21,24 @@ class _AddEditNoteScreenState extends State<AddEditNoteScreen> {
 
   final List<Color> _colorPalette = [
     Colors.white,
-    Colors.amber.shade100,
-    Colors.lightGreen.shade100,
-    Colors.lightBlue.shade100,
-    Colors.pink.shade100,
-    Colors.purple.shade100,
-    Colors.grey.shade200,
+    Colors.yellow,
+    Colors.green.shade300,
+    Colors.green,
+    Colors.red,
+    Colors.red.shade200,
+    Colors.yellow.shade200,
   ];
 
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.note?.title ?? '');
-    _contentController = TextEditingController(
-      text: widget.note?.content ?? '',
-    );
+    _contentController =
+        TextEditingController(text: widget.note?.content ?? '');
     _selectedColor = widget.note?.colorValue ?? Colors.white.value;
+
+    // Добавляем слушатель для предпросмотра
+    _contentController.addListener(_updatePreview);
   }
 
   @override
@@ -43,6 +46,14 @@ class _AddEditNoteScreenState extends State<AddEditNoteScreen> {
     _titleController.dispose();
     _contentController.dispose();
     super.dispose();
+  }
+
+  String _previewText = '';
+
+  void _updatePreview() {
+    setState(() {
+      _previewText = TextProcessor.processText(_contentController.text);
+    });
   }
 
   Future<void> _saveNote() async {
@@ -77,7 +88,10 @@ class _AddEditNoteScreenState extends State<AddEditNoteScreen> {
         backgroundColor: Color(_selectedColor),
         elevation: 0,
         actions: [
-          IconButton(icon: const Icon(Icons.check), onPressed: _saveNote),
+          IconButton(
+            icon: const Icon(Icons.check),
+            onPressed: _saveNote,
+          ),
         ],
       ),
       body: Form(
@@ -85,10 +99,49 @@ class _AddEditNoteScreenState extends State<AddEditNoteScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Информационная карточка о плейсхолдерах
+            Card(
+              color: Colors.blue.shade50,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            size: 18, color: Colors.blue.shade700),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Динамические плейсхолдеры',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '• %d — текущая дата (ДД.ММ.ГГГГ)\n'
+                      '• %t — текущее время (ЧЧ:ММ)\n'
+                      'При копировании заметки плейсхолдеры будут заменены на актуальные значения',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _titleController,
               decoration: const InputDecoration(
                 labelText: 'Заголовок',
+                hintText: 'Например: Встреча %t',
                 border: OutlineInputBorder(),
               ),
               validator: (value) =>
@@ -99,6 +152,8 @@ class _AddEditNoteScreenState extends State<AddEditNoteScreen> {
               controller: _contentController,
               decoration: const InputDecoration(
                 labelText: 'Текст заметки',
+                hintText:
+                    'Используйте %d для даты и %t для времени\nПример: Сегодня %d, встреча в %t',
                 border: OutlineInputBorder(),
                 alignLabelWithHint: true,
               ),
@@ -106,6 +161,52 @@ class _AddEditNoteScreenState extends State<AddEditNoteScreen> {
               validator: (value) =>
                   value?.isEmpty ?? true ? 'Введите текст' : null,
             ),
+
+            // Предпросмотр результата
+            if (_contentController.text.isNotEmpty &&
+                (_contentController.text.contains('%d') ||
+                    _contentController.text.contains('%t')))
+              Column(
+                children: [
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.preview,
+                                size: 16, color: Colors.grey.shade600),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Предпросмотр при копировании:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _previewText.isEmpty
+                              ? _contentController.text
+                              : _previewText,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
             const SizedBox(height: 24),
             const Text(
               'Выберите цвет заметки:',

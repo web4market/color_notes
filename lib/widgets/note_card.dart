@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/note.dart';
+import '../utils/text_processor.dart';
 import 'package:intl/intl.dart';
 
 class NoteCard extends StatelessWidget {
@@ -16,10 +18,33 @@ class NoteCard extends StatelessWidget {
     required this.onDelete,
   });
 
+  Future<void> _copyWithProcessing(BuildContext context) async {
+    // Обрабатываем текст: заменяем %d и %t
+    final processedContent = TextProcessor.processText(note.content);
+    final processedTitle = TextProcessor.processText(note.title);
+
+    // Формируем текст для копирования (заголовок + содержание)
+    final textToCopy = '$processedTitle\n\n$processedContent';
+
+    // Копируем в буфер
+    await Clipboard.setData(ClipboardData(text: textToCopy));
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('✓ Скопировано с заменой плейсхолдеров:\n$processedContent'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () => _copyWithProcessing(context), // Используем новую функцию
       onLongPress: onLongPress,
       child: Card(
         margin: const EdgeInsets.only(bottom: 12),
@@ -57,6 +82,22 @@ class NoteCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    // Индикатор наличия плейсхолдеров
+                    if (note.content.contains('%d') ||
+                        note.content.contains('%t'))
+                      Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'динамическая',
+                          style: TextStyle(fontSize: 10),
+                        ),
+                      ),
                     IconButton(
                       icon: const Icon(Icons.edit, size: 20),
                       onPressed: onLongPress,
@@ -66,16 +107,33 @@ class NoteCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
+                // Показываем предпросмотр с заменой плейсхолдеров
                 Text(
-                  note.content,
+                  _getDisplayContent(),
                   style: const TextStyle(fontSize: 14),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  DateFormat('dd.MM.yy HH:mm').format(note.updatedAt),
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        DateFormat('dd.MM.yy HH:mm').format(note.updatedAt),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                    // Иконка копирования с подсказкой
+                    Tooltip(
+                      message:
+                          'Нажмите для копирования (плейсхолдеры %d и %t будут заменены)',
+                      child:
+                          const Icon(Icons.copy, size: 16, color: Colors.grey),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -83,5 +141,11 @@ class NoteCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _getDisplayContent() {
+    // Для отображения в карточке тоже заменяем плейсхолдеры
+    // Чтобы пользователь видел актуальную дату/время
+    return TextProcessor.processText(note.content);
   }
 }
